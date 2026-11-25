@@ -708,6 +708,13 @@ body::before,body::after {display:none!important}
 .video-placeholder{display:grid;justify-items:center;gap:12px;text-align:center;padding:16px;color:#d5dce1}
 .video-placeholder svg{width:44px;height:44px;color:#a8becd}
 .video-note{color:#aebec6;text-align:center;margin:16px 0;line-height:1.6}
+
+/* Tela cheia horizontal do vídeo-álbum */
+.video-full-btn{display:flex;align-items:center;justify-content:center;gap:8px;margin:12px auto 0;padding:10px 15px;color:#eaf0f4;background:#22272b;border:1px solid #454e56;border-radius:12px;font-weight:700;font-size:12px}
+.video-frame:fullscreen{width:100%;height:100%;max-width:none;aspect-ratio:auto;border:0;border-radius:0;background:#000;display:flex;align-items:center;justify-content:center}
+.video-frame:fullscreen iframe{position:relative;inset:auto;width:min(100vw,177.78vh);height:min(100vh,56.25vw)}
+.video-frame:-webkit-full-screen{width:100%;height:100%;aspect-ratio:auto;border:0;border-radius:0;background:#000}
+.video-rotate-note{text-align:center;font-size:12px;color:#aebec6;margin:8px 0 0}
 </style>
 </head>
 <body>
@@ -767,7 +774,7 @@ body::before,body::after {display:none!important}
     <h2 class="gallery-title" id="videoHeading">Vídeo-álbum</h2>
     <div class="video-panel">
       <div class="video-frame" id="videoFrame"><div class="video-placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4z"/></svg><strong>Vídeo em breve</strong></div></div>
-      <p class="video-note" id="videoNote">Um registro dos momentos que marcaram a produção de Entre Lugares.</p>
+      <button class="video-full-btn" id="videoFullscreen" type="button"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg> Tela cheia horizontal</button><p class="video-rotate-note" id="videoRotateNote" hidden></p><p class="video-note" id="videoNote">Um registro dos momentos que marcaram a produção de Entre Lugares.</p>
     </div>
   </div>
 </div>
@@ -1036,17 +1043,32 @@ if (quoteElement && !window.matchMedia('(prefers-reduced-motion: reduce)').match
   const youtubeVideoId = 'L9jJ1Nw45_k';
   const card=document.getElementById('videoCard'),overlay=document.getElementById('videoOverlay'),back=document.getElementById('videoBack'),frame=document.getElementById('videoFrame');
   const placeholder=frame.innerHTML;let previousOverflow='';
+  const fullButton=document.getElementById('videoFullscreen'), rotateNote=document.getElementById('videoRotateNote');
+  let requestedFull=false;
+  const fullElement=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  function unlockVideoOrientation(){try{screen.orientation?.unlock?.();}catch(e){}}
+  async function lockVideoOrientation(){try{if(screen.orientation?.lock){await screen.orientation.lock('landscape');return true;}}catch(e){}return false;}
+  fullButton.addEventListener('click',async()=>{
+    rotateNote.hidden=true;
+    const request=frame.requestFullscreen||frame.webkitRequestFullscreen;
+    if(!request){rotateNote.textContent='Use a tela cheia do YouTube e gire o celular horizontalmente.';rotateNote.hidden=false;return;}
+    try{requestedFull=true;await request.call(frame);const locked=await lockVideoOrientation();if(!locked){rotateNote.textContent='Se a tela não girar, ative a rotação automática e vire o celular.';rotateNote.hidden=false;}}catch(e){requestedFull=false;rotateNote.textContent='Use a tela cheia do YouTube e gire o celular horizontalmente.';rotateNote.hidden=false;}
+  });
+  function videoFullscreenChanged(){if(!fullElement()&&requestedFull){requestedFull=false;unlockVideoOrientation();}}
+  document.addEventListener('fullscreenchange',videoFullscreenChanged);
+  document.addEventListener('webkitfullscreenchange',videoFullscreenChanged);
+
   function open(){
-    previousOverflow=document.body.style.overflow;
+    previousOverflow=document.body.style.overflow;rotateNote.hidden=true;
     overlay.classList.add('open');overlay.scrollTop=0;document.body.style.overflow='hidden';back.focus();
     if(/^[A-Za-z0-9_-]{11}$/.test(youtubeVideoId)){
       window.setVideoMusicSuspended(true);
       const iframe=document.createElement('iframe');iframe.title='Entre Lugares — Vídeo-álbum';iframe.src='https://www.youtube-nocookie.com/embed/'+youtubeVideoId+'?playsinline=1&rel=0';iframe.allow='accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen';iframe.allowFullscreen=true;iframe.referrerPolicy='strict-origin-when-cross-origin';frame.replaceChildren(iframe);
     }
   }
-  function close(){frame.innerHTML=placeholder;overlay.classList.remove('open');document.body.style.overflow=previousOverflow;window.setVideoMusicSuspended(false);card.focus();}
+  function close(){if(requestedFull){const exit=document.exitFullscreen||document.webkitExitFullscreen;if(fullElement()&&exit){try{Promise.resolve(exit.call(document)).catch(()=>{});}catch(e){}}requestedFull=false;unlockVideoOrientation();}frame.innerHTML=placeholder;overlay.classList.remove('open');document.body.style.overflow=previousOverflow;window.setVideoMusicSuspended(false);card.focus();}
   card.addEventListener('click',open);back.addEventListener('click',close);
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&overlay.classList.contains('open')){e.preventDefault();close();}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&overlay.classList.contains('open')&&!fullElement()){e.preventDefault();close();}});
 })();
 </script>
 </body>
